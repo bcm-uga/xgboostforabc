@@ -1,0 +1,100 @@
+---
+title: "R Notebook for ABC model classification using currently implemented methods in the abc package"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+The script uses xgboost for model classiifcation in ABC. We consider the simulations provided in the vignette of the R abc package. These simulations are used to discriminate between different demographic models and are contained in the *human* data.
+
+```{r}
+require(abc)
+require(abc.data)
+data(human)
+```
+
+
+Distribution of the sums stats for the different models
+```{r}
+par(mfcol = c(1,3))
+boxplot(stat.3pops.sim[,"pi"]~models, main="Mean nucleotide diversity")
+boxplot(stat.3pops.sim[,"TajD.m"]~models, main="Mean Tajima's D")
+boxplot(stat.3pops.sim[,"TajD.v"]~models, main="Var in Tajima's D")
+```
+Summary stats for human resequencing data
+```{r}
+stat.voight
+```
+ Running neural nets for the Voight et al. data
+```{r}
+modsel.it <- postpr(stat.voight["italian",], models, stat.3pops.sim, tol=.05, method="neuralnet",trace=F)
+print(summary(modsel.it,print=F)[2]$neuralnet$Prob)
+```
+Evaluate model classification with 3 different methods currently implemented in the package
+```{r,cache=TRUE}
+
+#modsel.rejection <- cv4postpr(models,stat.3pops.sim, tol=.05,nval=500,method="rejection",trace=F)
+
+#modsel.logistic <- cv4postpr(models,stat.3pops.sim, tol=.05,nval=500,method="mnlogistic",trace=F)
+
+#modsel.nnet <- cv4postpr(models,stat.3pops.sim, tol=.05,nval=500,method="neuralnet",trace=F)
+
+#save(modsel.rejection,modsel.logistic,modsel.nnet,file="cv.Rdata")
+load(file="cv.Rdata")
+```
+
+```{r}
+cat("misclassif rate\n","rejection   ",1-sum(diag(table(modsel.rejection$true,modsel.rejection$estim[[1]])))/1500,"\n","logistic ",1-sum(diag(table(modsel.logistic$true,modsel.logistic$estim[[1]])))/1500,"\n","nnet ",1-sum(diag(table(modsel.nnet$true,modsel.nnet$estim[[1]])))/1500)
+```
+
+
+```{r}
+require(caret)
+#plot for calibration
+ff<-function(modsel,char,aux)
+{
+  if(aux==1)
+{
+bottleneck<-factor(models[modsel$cvsamples]!="bott")
+probs<-modsel$model.probs[[1]][,"bott"]
+calPlotData <- calibration(bottleneck~ probs)
+plot(calPlotData, main=char,type = "l",xlab="prob bottleneck", auto.key = list(columns = 3,
+                                          lines = TRUE,
+                                          points = FALSE))
+}
+else if (aux==2)
+{
+bottleneck<-factor(models[modsel$cvsamples]!="exp")
+probs<-modsel$model.probs[[1]][,"exp"]
+calPlotData <- calibration(bottleneck~ probs)
+plot(calPlotData, type = "l",main=char,xlab="prob expansion", auto.key = list(columns = 3,
+                                          lines = TRUE,
+                                          points = FALSE),add=T,col="green")
+}
+else
+{
+bottleneck<-factor(models[modsel$cvsamples]!="const")
+probs<-modsel$model.probs[[1]][,"const"]
+calPlotData <- calibration(bottleneck~ probs)
+plot(calPlotData, type = "l",main=char,xlab="prob const", auto.key = list(columns = 3,
+                                          lines = TRUE,
+                                          points = FALSE),add=T,col="green")
+}
+}
+
+
+ff(modsel=modsel.rejection,char="rejection",1)
+ff(modsel=modsel.rejection,char="rejection",2)
+ff(modsel=modsel.rejection,char="rejection",3)
+
+ff(modsel=modsel.logistic,char="logistic",1)
+ff(modsel=modsel.logistic,char="logistic",2)
+ff(modsel=modsel.logistic,char="logistic",3)
+
+ff(modsel=modsel.nnet,char="nnet",1)
+ff(modsel=modsel.nnet,char="nnet",2)
+ff(modsel=modsel.nnet,char="nnet",3)
+
+```
+
+
