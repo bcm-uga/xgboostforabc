@@ -1,0 +1,111 @@
+---
+title: "R Notebook for ABC model classification using xgboost"
+output:
+  html_document: default
+  html_notebook: default
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+
+The script uses xgboost for model classification in ABC. We consider the simulations provided in the vignette of the R abc package. These simulations are used to discriminate between different demographic models and are contained in the *human* data.
+
+```{r, results="hide"}
+require(abc)
+require(abc.data)
+data(human)
+```
+
+
+Install xgboost
+```{r,message=FALSE, results="hide"}
+install.packages("drat", repos="https://cran.rstudio.com")
+drat:::addRepo("dmlc")
+install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
+require(xgboost)
+```
+
+Make a training and a validation dataset
+```{r,message=FALSE}
+aux<-NULL
+for (i in 1:3)
+{
+aux<-c(aux,sample( ((1+50000*(i-1)):(50000+50000*(i-1))), size=45000,replace=F ))
+}
+notaux<-setdiff(1:150000,aux)
+
+newm<-as.integer(as.factor(models))
+dtrain <- xgb.DMatrix(data = as.matrix(stat.3pops.sim[aux,]),label=newm[aux]-1)
+dtest<-list(data=as.matrix(stat.3pops.sim[notaux,]),label=(newm[notaux]-1))
+```
+
+
+Simple xgboost with 3 different values for the number of iterations.
+
+```{r}
+# Convert classes to integers for xgboost
+#https://stackoverflow.com/questions/36086529/understanding-num-classes-for-xgboost-in-r
+
+#1 iteration
+mod1<-xgboost(data = dtrain, objective = "multi:softprob", 
+          num_class=3,verbose = 0,nrounds=1)
+pred <- predict(mod1, dtest$data)
+pred.mat<-matrix(pred,byrow=T,ncol=3)
+tt<-table(dtest$label,apply(pred.mat,FUN=function(x){which(x==max(x))-1},MARGIN=1))
+cat("error with 1 round of iteration ",((1-sum(diag(tt))/sum(tt))),"\n")
+
+#3 iterations
+mod1<-xgboost(data = dtrain, objective = "multi:softprob", 
+          num_class=3,verbose = 0,nrounds=3)
+pred <- predict(mod1, dtest$data)
+pred.mat<-matrix(pred,byrow=T,ncol=3)
+tt<-table(dtest$label,apply(pred.mat,FUN=function(x){which(x==max(x))-1},MARGIN=1))
+cat("error with 3 rounds of iteration ",((1-sum(diag(tt))/sum(tt))),"\n")
+
+#10 iterations
+mod1<-xgboost(data = dtrain, objective = "multi:softprob", 
+          num_class=3,verbose = 0,nrounds=10)
+pred <- predict(mod1, dtest$data)
+pred.mat<-matrix(pred,byrow=T,ncol=3)
+tt<-table(dtest$label,apply(pred.mat,FUN=function(x){which(x==max(x))-1},MARGIN=1))
+cat("error with 10 rounds of iteration ",((1-sum(diag(tt))/sum(tt))),"\n")
+
+```
+
+Choosing best value of hyper-parameters with caret and grid search.
+```{r}
+require(e1071)
+cv.ctrl <- caret::trainControl(## 5-fold CV
+                           method = "cv",
+                           number = 5,
+                           classProbs=TRUE
+                           )
+
+
+xgb.grid <- expand.grid(nrounds = c(5),
+                        eta = c(0.01,0.3),
+                        gamma = c(0),#default=0,
+                        max_depth = c(6,12,18,24),#default=6
+                        subsample = 1,#default=1
+                        colsample_bytree = 1,#default=1
+                        min_child_weight = 1#default=1
+                        )
+
+xgb_tune <-caret::train(x=as.matrix(stat.3pops.sim[aux,]),
+                 y=as.factor(models[aux]),
+                 method="xgbTree",
+                 trControl=cv.ctrl,
+                 tuneGrid=xgb.grid,
+                 verbose=T,
+                 metric="Accuracy",
+                 nthread =3)
+
+print(xgb_tune)
+pred <- predict(xgb_tune, dtest$data)
+pred.mat<-matrix(pred,byrow=T,ncol=3)
+tt<-table(dtest$label,pred)
+cat("error after grid search optim ",((1-sum(diag(tt))/sum(tt))),"\n")
+
+```
+
