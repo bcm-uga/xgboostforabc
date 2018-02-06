@@ -109,3 +109,92 @@ cat("error after grid search optim ",((1-sum(diag(tt))/sum(tt))),"\n")
 
 ```
 
+Evaluate the effect of the different xgboost hyperparameters 
+```{r}
+par(mfrow=c(2,2))
+##1. Effect of nrounds
+mod1<-sapply(abs<-c(1,5,10,20,50),FUN=function(x){
+            xgb_tune<-xgboost::xgboost(data = dtrain, objective="multi:softprob",num_class=3,verbose = 0,nrounds=x)
+            pred<-apply(matrix(predict(xgb_tune, dtest$data),byrow=T,ncol=3),FUN=function(x){
+which(x==max(x))-1
+              },MARGIN=1)
+            tt<-table(dtest$label,pred)
+            return(1-sum(diag(tt))/sum(tt))
+})
+plot(abs,mod1,xlab="Number of iterations",ylab="Prediction error",pch=19,cex.lab=1.4,ylim=c(0.20,0.30))
+
+##2. Effect of eta
+mod1<-sapply(abs<-c(0.001,0.01,0.1,0.3,0.8,1.5),FUN=function(x){
+            xgb_tune<-xgboost::xgboost(data = dtrain, objective="multi:softprob",num_class=3,verbose = 0,params=list(eta=x),nrounds=5)
+            pred<-apply(matrix(predict(xgb_tune, dtest$data),byrow=T,ncol=3),FUN=function(x){
+which(x==max(x))-1
+              },MARGIN=1)
+            tt<-table(dtest$label,pred)
+            return(1-sum(diag(tt))/sum(tt))
+})
+plot(abs,mod1,xlab="eta",ylab="Prediction error",pch=19,cex.lab=1.4,ylim=c(0.20,0.30))
+
+##3. Effect of gamma
+mod1<-sapply(abs<-c(0,0.1,0.5,1),FUN=function(x){
+            xgb_tune<-xgboost::xgboost(data = dtrain, objective="multi:softprob",num_class=3,verbose = 0,params=list(gamma=x),nrounds=5)
+            pred<-apply(matrix(predict(xgb_tune, dtest$data),byrow=T,ncol=3),FUN=function(x){
+which(x==max(x))-1
+              },MARGIN=1)
+            tt<-table(dtest$label,pred)
+            return(1-sum(diag(tt))/sum(tt))
+})
+plot(abs,mod1,xlab="gamma",ylab="Prediction error",pch=19,cex.lab=1.4,ylim=c(0.20,0.30))
+
+##4. Effect of max_depth
+mod1<-sapply(abs<-c(3,6,12,24),FUN=function(x){
+            xgb_tune<-xgboost::xgboost(data = dtrain, objective="multi:softprob",num_class=3,verbose = 0,params=list(max_depth=x),nrounds=5)
+            pred<-apply(matrix(predict(xgb_tune, dtest$data),byrow=T,ncol=3),FUN=function(x){
+which(x==max(x))-1
+              },MARGIN=1)
+            tt<-table(dtest$label,pred)
+            return(1-sum(diag(tt))/sum(tt))
+})
+plot(abs,mod1,xlab="max_depth",ylab="Prediction error",pch=19,cex.lab=1.4,ylim=c(0.20,0.30))
+```
+
+
+Effect of other hyperparameters
+
+```{r}
+par(mfrow=c(2,2))
+##1. Effect of subsample
+mod1<-sapply(abs<-c(0.1,0.5,0.75,1),FUN=function(x){
+            xgb_tune<-xgboost::xgboost(data = dtrain, objective="multi:softprob",num_class=3,verbose = 0,params=list(subsample=x),nrounds=5)
+            pred<-apply(matrix(predict(xgb_tune, dtest$data),byrow=T,ncol=3),FUN=function(x){
+which(x==max(x))-1
+              },MARGIN=1)
+            tt<-table(dtest$label,pred)
+            return(1-sum(diag(tt))/sum(tt))
+})
+plot(abs,mod1,xlab="subsample",ylab="Prediction error",pch=19,cex.lab=1.4,ylim=c(0.20,0.30))
+
+##2. Effect of colsample_bytree
+mod1<-sapply(abs<-c(0.1,0.5,0.75,1),FUN=function(x){
+            xgb_tune<-xgboost::xgboost(data = dtrain, objective="multi:softprob",num_class=3,verbose = 0,params=list(colsample_bytree=x),nrounds=5)
+            pred<-apply(matrix(predict(xgb_tune, dtest$data),byrow=T,ncol=3),FUN=function(x){
+which(x==max(x))-1
+              },MARGIN=1)
+            tt<-table(dtest$label,pred)
+            return(1-sum(diag(tt))/sum(tt))
+})
+plot(abs,mod1,xlab="colsample_bytree",ylab="Prediction error",pch=19,cex.lab=1.4,main="Not the same scale!")
+
+##3. Effect of min_child_weight 
+mod1<-sapply(abs<-c(0.1,0.5,0.75,1,2,5),FUN=function(x){
+            xgb_tune<-xgboost::xgboost(data = dtrain, objective="multi:softprob",num_class=3,verbose = 0,params=list(min_child_weight =x),nrounds=5)
+            pred<-apply(matrix(predict(xgb_tune, dtest$data),byrow=T,ncol=3),FUN=function(x){
+which(x==max(x))-1
+              },MARGIN=1)
+            tt<-table(dtest$label,pred)
+            return(1-sum(diag(tt))/sum(tt))
+})
+plot(abs,mod1,xlab="min_child_weight",ylab="Prediction error",pch=19,cex.lab=1.4,ylim=c(0.20,0.30))
+
+```
+
+The parameter *colsample_bytree* has a large impact on the prediction. Its default value of 1 should be used. *Number of iterations*, *eta* and *max_depth* are the other parameters, which influence prediction error.
